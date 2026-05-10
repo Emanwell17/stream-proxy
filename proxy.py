@@ -208,8 +208,7 @@ def watch(channel_id):
 
 @app.route("/")
 def home():
-    base = request.host_url.rstrip("/")
-    return f"""<!DOCTYPE html>
+    return """<!DOCTYPE html>
 <html><head><title>Clean Stream</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#111;color:#eee;font-family:Arial,sans-serif;
@@ -240,7 +239,7 @@ function go(){
   if(!v) return;
   var src = '/watch/' + v;
   document.getElementById('player').src = src;
-  var full = '{base}/watch/' + v;
+  var full = window.location.protocol + '//' + window.location.host + '/watch/' + v;
   document.getElementById('ecode').innerText =
     '<iframe src="' + full + '" width="854" height="480" allowfullscreen></iframe>';
   document.getElementById('ebox').style.display = 'block';
