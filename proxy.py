@@ -239,7 +239,7 @@ function go(){
   if(!v) return;
   var src = '/watch/' + v;
   document.getElementById('player').src = src;
-  var full = 'http://YOUR-SERVER-IP:8080/watch/' + v;
+  var full = window.location.origin + '/watch/' + v;
   document.getElementById('ecode').innerText =
     '<iframe src="' + full + '" width="854" height="480" allowfullscreen></iframe>';
   document.getElementById('ebox').style.display = 'block';
