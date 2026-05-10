@@ -184,6 +184,20 @@ def build_clean_page(html: str, page_url: str) -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+@app.route("/source/<channel_id>")
+def source(channel_id):
+    """Debug: show raw unmodified player HTML so we can inspect it."""
+    player_url, player_referer = get_player_url(channel_id)
+    try:
+        r = SESSION.get(player_url, headers={
+            "Referer": player_referer,
+            "Origin": BASE,
+        }, timeout=12)
+        return Response(r.text, content_type="text/plain")
+    except Exception as e:
+        return str(e), 502
+
+
 @app.route("/watch/<channel_id>")
 def watch(channel_id):
     print(f"\n[*] Channel {channel_id}")
