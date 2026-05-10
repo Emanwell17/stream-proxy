@@ -18,6 +18,7 @@ Usage:
 """
 
 import re
+import base64
 import requests
 from flask import Flask, Response, request
 from urllib.parse import quote, unquote, urljoin
@@ -198,6 +199,54 @@ def source(channel_id):
         return str(e), 502
 
 
+def extract_stream_url(html):
+    """Find window.atob('...') in the player JS and decode it to get the real stream URL."""
+    m = re.search(r"window\.atob\(['\"]([A-Za-z0-9+/=]+)['\"]\)", html)
+    if m:
+        try:
+            return base64.b64decode(m.group(1)).decode()
+        except Exception:
+            pass
+    # Also look for plain m3u8 URLs
+    m = re.search(r"['\"]([^'\"]+\.m3u8[^'\"]*)['\"]", html)
+    if m:
+        return m.group(1)
+    return None
+
+
+def clean_player_html(stream_url, referer):
+    """Build a completely clean player page with no ads."""
+    # Route the stream through our proxy so we can add correct headers
+    proxied = f"/hls?url={quote(stream_url, safe='')}&ref={quote(referer, safe='')}"
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Stream</title>
+<style>
+  html,body{{margin:0;padding:0;height:100%;overflow:hidden;background:#000}}
+  #player{{width:100vw;height:100vh}}
+</style>
+<script src="//cdn.jsdelivr.net/npm/@clappr/player@latest/dist/clappr.min.js"></script>
+</head>
+<body>
+<div id="player"></div>
+<script>
+new Clappr.Player({{
+  source: "{proxied}",
+  mimeType: "application/x-mpegURL",
+  height: "100%",
+  width: "100%",
+  autoPlay: true,
+  playback: {{
+    hlsjsConfig: {{ maxBufferLength: 10, liveSyncDurationCount: 3 }}
+  }}
+}}).attachTo(document.getElementById("player"));
+</script>
+</body>
+</html>"""
+
+
 @app.route("/watch/<channel_id>")
 def watch(channel_id):
     print(f"\n[*] Channel {channel_id}")
@@ -211,11 +260,18 @@ def watch(channel_id):
         r.raise_for_status()
         html = r.text
     except Exception as e:
-        return f"<h2 style='color:red;font-family:sans-serif'>Error loading stream: {e}</h2>", 502
+        return f"<h2 style='color:red;font-family:sans-serif'>Error: {e}</h2>", 502
 
-    clean = build_clean_page(html, player_url)
-    print(f"  [ok] Serving clean player")
-    return Response(clean, content_type="text/html",
+    stream_url = extract_stream_url(html)
+
+    if stream_url:
+        print(f"  [stream] {stream_url}")
+        page = clean_player_html(stream_url, player_url)
+    else:
+        print(f"  [fallback] no stream URL found, stripping ads from raw HTML")
+        page = build_clean_page(html, player_url)
+
+    return Response(page, content_type="text/html",
                     headers={"Access-Control-Allow-Origin": "*",
                              "X-Frame-Options": "ALLOWALL"})
 
