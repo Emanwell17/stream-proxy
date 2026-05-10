@@ -242,8 +242,6 @@ def extract_stream_url(html):
 
 def clean_player_html(stream_url, referer):
     """Build a completely clean player page with no ads."""
-    # Route the stream through our proxy so we can add correct headers
-    proxied = f"/hls?url={quote(stream_url, safe='')}&ref={quote(referer, safe='')}"
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -253,21 +251,25 @@ def clean_player_html(stream_url, referer):
   html,body{{margin:0;padding:0;height:100%;overflow:hidden;background:#000}}
   #player{{width:100vw;height:100vh}}
 </style>
-<script src="//cdn.jsdelivr.net/npm/@clappr/player@latest/dist/clappr.min.js"></script>
+<script src="//cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
 </head>
 <body>
-<div id="player"></div>
+<div id="player"><video id="v" style="width:100%;height:100vh;background:#000" autoplay controls></video></div>
 <script>
-new Clappr.Player({{
-  source: "{proxied}",
-  mimeType: "application/x-mpegURL",
-  height: "100%",
-  width: "100%",
-  autoPlay: true,
-  playback: {{
-    hlsjsConfig: {{ maxBufferLength: 10, liveSyncDurationCount: 3 }}
-  }}
-}}).attachTo(document.getElementById("player"));
+var url = "{stream_url}";
+var video = document.getElementById("v");
+if (Hls.isSupported()) {{
+  var hls = new Hls({{ maxBufferLength: 10, liveSyncDurationCount: 3 }});
+  hls.loadSource(url);
+  hls.attachMedia(video);
+  hls.on(Hls.Events.MANIFEST_PARSED, function() {{ video.play(); }});
+  hls.on(Hls.Events.ERROR, function(e, d) {{
+    console.log("HLS error:", d.type, d.details, d.fatal);
+  }});
+}} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
+  video.src = url;
+  video.play();
+}}
 </script>
 </body>
 </html>"""
