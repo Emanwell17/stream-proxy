@@ -185,6 +185,32 @@ def build_clean_page(html: str, page_url: str) -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+@app.route("/test/<channel_id>")
+def test_stream(channel_id):
+    """Fetch the stream URL and show exactly what the CDN returns."""
+    player_url, player_referer = get_player_url(channel_id)
+    try:
+        r = SESSION.get(player_url, headers={"Referer": player_referer, "Origin": BASE}, timeout=12)
+        html = r.text
+    except Exception as e:
+        return f"Failed to get player: {e}"
+
+    stream_url = extract_stream_url(html)
+    if not stream_url:
+        return f"No stream URL found in player HTML"
+
+    try:
+        sr = SESSION.get(stream_url, headers={
+            "Referer": player_url,
+            "Origin": "/".join(player_url.split("/")[:3]),
+        }, timeout=10)
+        ct = sr.headers.get("Content-Type", "unknown")
+        preview = sr.text[:500] if sr.text else "(empty)"
+        return f"Stream URL: {stream_url}\nStatus: {sr.status_code}\nContent-Type: {ct}\n\nPreview:\n{preview}"
+    except Exception as e:
+        return f"Stream URL: {stream_url}\nFetch error: {e}"
+
+
 @app.route("/source/<channel_id>")
 def source(channel_id):
     """Debug: show raw unmodified player HTML so we can inspect it."""
